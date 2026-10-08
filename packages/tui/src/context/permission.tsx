@@ -1,6 +1,8 @@
+import { onCleanup } from "solid-js"
 import { useConfig } from "../config"
 import { useArgs } from "./args"
 import { useData } from "./data"
+import { useEvent } from "./event"
 import { createSimpleContext } from "./helper"
 import { useStorage } from "./storage"
 
@@ -17,6 +19,14 @@ export const { use: usePermission, provider: PermissionProvider } = createSimple
       initial: { sessions: {} },
     })
     const fallback = () => (args.auto ? "autoaccept" : config.data.session.permissions)
+    onCleanup(
+      useEvent().on("session.deleted", (evt) => {
+        if (!store.sessions[evt.data.sessionID]) return
+        void update((draft) => {
+          delete draft.sessions[evt.data.sessionID]
+        }).catch((error) => console.error("Failed to forget deleted session permission mode", error))
+      }),
+    )
     return {
       /** A session's own choice wins. Sessions without one, and new sessions, follow `--auto` and then `session.permissions`. */
       mode(sessionID?: string): PermissionMode {

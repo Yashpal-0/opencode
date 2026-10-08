@@ -17,6 +17,21 @@ test("permission mode applies to one session and its subagents only", async () =
   expect(setup.local.permission.mode("ses_first")).toBe("prompt")
 })
 
+test("a deleted session's permission mode is forgotten", async () => {
+  await using setup = await renderLocal()
+  setup.data.session.remember(session("ses_first"))
+  await setup.local.permission.set("ses_first", "autoaccept")
+
+  setup.events.emit({
+    id: "evt_deleted",
+    type: "session.deleted",
+    created: 1,
+    durable: { aggregateID: "ses_first", seq: 1, version: 2 },
+    data: { sessionID: "ses_first" },
+  })
+  await wait(() => setup.local.permission.mode("ses_first") === "prompt")
+})
+
 test("a session's own permission mode overrides --auto", async () => {
   await using setup = await renderLocal({ args: { auto: true } })
   setup.data.session.remember(session("ses_first"))
@@ -25,3 +40,11 @@ test("a session's own permission mode overrides --auto", async () => {
   expect(setup.local.permission.mode("ses_first")).toBe("prompt")
   expect(setup.local.permission.mode("ses_second")).toBe("autoaccept")
 })
+
+async function wait(fn: () => boolean, timeout = 2000) {
+  const start = Date.now()
+  while (!fn()) {
+    if (Date.now() - start > timeout) throw new Error("timed out waiting for condition")
+    await Bun.sleep(10)
+  }
+}
